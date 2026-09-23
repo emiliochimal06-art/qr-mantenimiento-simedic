@@ -12,10 +12,6 @@ Cómo correrlo:
     pip install -r requirements.txt
     python app.py
 Luego abre http://127.0.0.1:5000/admin
-
-IMPORTANTE: cambia BASE_URL por el dominio real donde se publique la
-app antes de generar los QR definitivos (los QR ya generados con una
-URL vieja dejarían de funcionar si cambias el dominio después).
 """
 
 import os
@@ -33,9 +29,6 @@ DB_PATH = os.path.join(BASE_DIR, "mantenimiento.db")
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
 QR_FOLDER = os.path.join(BASE_DIR, "static", "qrcodes")
 LOGO_PATH = "/static/logo.png"  # coloca tu logo en static/logo.png
-
-# Cambia esto por tu dominio real al desplegar (ej. "https://simedic.mx")
-BASE_URL = "http://192.168.0.139:5000"
 
 DIAS_LIMITE_INACTIVO = 365  # 1 año sin renovar -> se elimina del listado
 
@@ -97,10 +90,11 @@ def marcar_inactivos_vencidos():
 
 
 def generar_qr(equipo_id):
-    """Genera (o sobrescribe) el PNG del QR para un equipo. La URL
-    codificada nunca cambia mientras el id no cambie, así el QR físico
-    pegado en el equipo sigue siendo válido para siempre."""
-    url_publica = f"{BASE_URL}{url_for('ver_equipo', equipo_id=equipo_id)}"
+    """Genera (o sobrescribe) el PNG del QR para un equipo. La URL se
+    detecta automáticamente según el dominio desde el que se está usando
+    la app (local o el dominio real ya desplegado) — no hay que tocar
+    nada a mano al cambiar de red o de servidor."""
+    url_publica = url_for("ver_equipo", equipo_id=equipo_id, _external=True)
     img = qrcode.make(url_publica)
     ruta = os.path.join(QR_FOLDER, f"equipo_{equipo_id}.png")
     img.save(ruta)
@@ -253,6 +247,13 @@ def no_encontrado(e):
     return render_template("404.html"), 404
 
 
+# init_db() se ejecuta siempre al importar el módulo (no solo en
+# desarrollo local) porque en producción es gunicorn quien arranca la
+# app, y gunicorn nunca ejecuta el bloque de abajo.
+init_db()
+
 if __name__ == "__main__":
-    init_db()
-    app.run(host="0.0.0.0", debug=True)
+    # Solo para desarrollo local. En producción (Render) esto no se usa;
+    # ahí gunicorn corre la app directamente (ver Procfile).
+    puerto = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=puerto, debug=True)
