@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ equipo.nombre_equipo }} — Ficha de mantenimiento</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-ficha">
+  <div class="ficha-header">
+    <img src="{{ logo }}" alt="SIMEDIC" class="logo-header" onerror="this.style.display='none'">
+  </div>
+
+  <main class="ficha">
+    <div class="ficha-titulo">
+      <h1>{{ equipo.nombre_equipo }}</h1>
+      <span class="chip-cliente">Cliente {{ equipo.numero_cliente }}</span>
+    </div>
+
+    <div class="chip-estado chip-{{ estado.clase }}">
+      <span class="punto-estado"></span>{{ estado.texto }}
+    </div>
+
+    <div class="datos-ficha">
+      <div class="dato">
+        <span class="dato-icono" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v3M16 2v3M3.5 8.5h17M4 5h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/><path d="m8.5 13.5 2 2 4.5-4.5"/></svg>
+        </span>
+        <span class="dato-texto"><span class="dato-label">Último mantenimiento</span><strong>{{ equipo.fecha_ultimo_mant }}</strong></span>
+      </div>
+      <div class="dato">
+        <span class="dato-icono" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v3M16 2v3M3.5 8.5h17M4 5h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/><path d="M12 12v4M12 16h.01"/></svg>
+        </span>
+        <span class="dato-texto"><span class="dato-label">Próximo mantenimiento</span><strong>{{ equipo.fecha_proximo_mant }}</strong></span>
+      </div>
+      <div class="dato">
+        <span class="dato-icono" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.3"/><path d="M5 20c0-3.6 3.1-6.2 7-6.2s7 2.6 7 6.2"/></svg>
+        </span>
+        <span class="dato-texto"><span class="dato-label">Realizó</span><strong>{{ equipo.tecnico }}</strong></span>
+      </div>
+      {% if equipo.ubicacion %}
+      <div class="dato">
+        <span class="dato-icono" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.1 7-11.5A7 7 0 0 0 5 9.5C5 14.9 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.4"/></svg>
+        </span>
+        <span class="dato-texto"><span class="dato-label">Ubicación</span><strong>{{ equipo.ubicacion }}</strong></span>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if equipo.hoja_servicio_archivo %}
+    <a class="boton-pdf" href="{{ url_for('archivo_subido', filename=equipo.hoja_servicio_archivo) }}" target="_blank">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" width="18" height="18"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/></svg>
+      Ver hoja de servicio
+    </a>
+    {% else %}
+    <p class="texto-tenue">Aún no hay hoja de servicio cargada para este mantenimiento.</p>
+    {% endif %}
+  </main>
+
+  <p class="ficha-pie">Sistema de mantenimiento preventivo · SIMEDIC</p>
+</body>
+</html>

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block titulo %}Registrar equipo{% endblock %}
+{% block contenido %}
+<h1>Registrar nuevo equipo</h1>
+<form method="POST" enctype="multipart/form-data" class="formulario">
+  <label>Número de cliente
+    <input type="text" name="numero_cliente" required>
+  </label>
+  <label>Nombre / modelo del equipo
+    <input type="text" name="nombre_equipo" required>
+  </label>
+  <label>Ubicación (opcional)
+    <input type="text" name="ubicacion">
+  </label>
+  <label>Fecha de último mantenimiento
+    <input type="date" name="fecha_ultimo_mant" required>
+  </label>
+  <label>Fecha de próximo mantenimiento
+    <input type="date" name="fecha_proximo_mant" required>
+  </label>
+  <label>Técnico responsable
+    <input type="text" name="tecnico" required>
+  </label>
+  <label>Hoja de servicio escaneada (PDF)
+    <input type="file" name="hoja_servicio" accept="application/pdf">
+  </label>
+  <button type="submit" class="boton">Guardar y generar QR</button>
+</form>
+{% endblock %}

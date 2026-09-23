@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block titulo %}Equipos activos{% endblock %}
+{% block contenido %}
+<div class="encabezado-lista">
+  <h1>Equipos con mantenimiento activo</h1>
+  <a class="boton" href="{{ url_for('admin_nuevo') }}">+ Registrar equipo</a>
+</div>
+
+{% if equipos %}
+<table class="tabla">
+  <thead>
+    <tr>
+      <th>No. cliente</th>
+      <th>Equipo</th>
+      <th>Último mant.</th>
+      <th>Próximo mant.</th>
+      <th>Técnico</th>
+      <th>Hoja de servicio</th>
+      <th>QR</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for eq in equipos %}
+    <tr>
+      <td>{{ eq.numero_cliente }}</td>
+      <td>{{ eq.nombre_equipo }}</td>
+      <td>{{ eq.fecha_ultimo_mant }}</td>
+      <td>{{ eq.fecha_proximo_mant }}</td>
+      <td>{{ eq.tecnico }}</td>
+      <td>
+        {% if eq.hoja_servicio_archivo %}
+          <a href="{{ url_for('archivo_subido', filename=eq.hoja_servicio_archivo) }}" target="_blank">Ver PDF</a>
+        {% else %}
+          <span class="texto-tenue">— sin archivo —</span>
+        {% endif %}
+      </td>
+      <td><a href="{{ url_for('descargar_qr', equipo_id=eq.id) }}">Descargar QR</a></td>
+      <td>
+        <a href="{{ url_for('admin_editar', equipo_id=eq.id) }}">Actualizar</a>
+        <form method="POST" action="{{ url_for('admin_eliminar', equipo_id=eq.id) }}"
+              style="display:inline"
+              onsubmit="return confirm('¿Eliminar este equipo del listado de clientes?');">
+          <button type="submit" class="link-peligro">Eliminar</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="texto-tenue">Aún no hay equipos registrados.</p>
+{% endif %}
+{% endblock %}

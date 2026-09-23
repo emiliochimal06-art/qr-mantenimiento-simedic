@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block titulo %}Actualizar mantenimiento{% endblock %}
+{% block contenido %}
+<h1>Actualizar mantenimiento — {{ equipo.nombre_equipo }} ({{ equipo.numero_cliente }})</h1>
+<p class="texto-tenue">El QR físico pegado en el equipo NO cambia; solo se actualiza la información que muestra.</p>
+<form method="POST" enctype="multipart/form-data" class="formulario">
+  <label>Fecha de último mantenimiento
+    <input type="date" name="fecha_ultimo_mant" value="{{ equipo.fecha_ultimo_mant }}" required>
+  </label>
+  <label>Fecha de próximo mantenimiento
+    <input type="date" name="fecha_proximo_mant" value="{{ equipo.fecha_proximo_mant }}" required>
+  </label>
+  <label>Técnico responsable
+    <input type="text" name="tecnico" value="{{ equipo.tecnico }}" required>
+  </label>
+  <label>Reemplazar hoja de servicio (PDF, opcional)
+    <input type="file" name="hoja_servicio" accept="application/pdf">
+  </label>
+  <button type="submit" class="boton">Guardar cambios</button>
+</form>
+{% endblock %}
