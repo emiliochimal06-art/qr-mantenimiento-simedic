@@ -5,52 +5,59 @@ Sistema de QR/NFC dinámico para mantenimiento preventivo de equipo médico
   /equipo/<id>. Esa página lee los datos más recientes de la base de
   datos, así que al actualizar un mantenimiento NO hay que reimprimir
   ni reescribir nada.
-- Si pasa más de 1 año (365 días) desde el último mantenimiento sin
-  registrar uno nuevo, el equipo se marca inactivo y desaparece del
-  listado de clientes activos.
+- Base de datos permanente: si existe la variable de entorno
+  DATABASE_URL se usa Postgres (Neon); si no, SQLite local para pruebas.
+  Las fotos y los PDFs se guardan dentro de la misma base de datos, así
+  que no se pierden cuando Render reinicia.
 - Un cliente puede tener varios equipos (el número de cliente NO es
-  único); lo que identifica a un equipo es su número de serie, que sí
-  debe ser único si se captura.
-- El panel /admin está protegido con usuario y contraseña. La ficha
-  pública (/equipo/<id>) NO requiere login.
+  único); lo que identifica a un equipo es su número de serie.
+- El panel /admin requiere usuario y contraseña. La ficha pública
+  (/equipo/<id>) y sus archivos NO requieren login.
 
-Cómo correrlo:
+Cómo correrlo en tu compu (usa SQLite local):
     pip install -r requirements.txt
     python app.py
-Luego abre http://127.0.0.1:5000/admin
 """
 
+import io
 import os
 import sqlite3
+import uuid
 from datetime import datetime, date
 from functools import wraps
+
+import qrcode
+from PIL import Image, ImageOps
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    send_from_directory, flash, abort, session
+    send_file, flash, abort, session, Response
 )
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
-import qrcode
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+USAR_PG = bool(DATABASE_URL)
+if USAR_PG:
+    import psycopg2
+    import psycopg2.extras
+    ErroresIntegridad = (psycopg2.IntegrityError, sqlite3.IntegrityError)
+else:
+    ErroresIntegridad = (sqlite3.IntegrityError,)
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "mantenimiento.db")
-UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
-QR_FOLDER = os.path.join(BASE_DIR, "static", "qrcodes")
 LOGO_PATH = "/static/logo.png"
 
 DIAS_LIMITE_INACTIVO = 365
+MAX_PDF_BYTES = 8 * 1024 * 1024
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "cambia-esta-clave-en-produccion")
-app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
 
 ALLOWED_EXT_PDF = {"pdf"}
 ALLOWED_EXT_FOTO = {"png", "jpg", "jpeg"}
 
-# Usuario y contraseña del panel admin. Por defecto: admin / simedic2026.
-# CÁMBIALOS configurando ADMIN_USER y ADMIN_PASSWORD como variables de
-# entorno en Render (pestaña "Environment").
 ADMIN_USER = os.environ.get("ADMIN_USER", "admin")
 ADMIN_PASSWORD_HASH = generate_password_hash(
     os.environ.get("ADMIN_PASSWORD", "simedic2026")
@@ -70,17 +77,51 @@ def login_required(vista):
     return envoltura
 
 
+# ---------------------------------------------------------------------
+# Base de datos (Postgres en producción, SQLite en local)
+# ---------------------------------------------------------------------
+class DB:
+    """Envoltura mínima para usar el mismo código con Postgres o SQLite."""
+
+    def __init__(self):
+        if USAR_PG:
+            self.conn = psycopg2.connect(DATABASE_URL)
+        else:
+            self.conn = sqlite3.connect(DB_PATH)
+            self.conn.row_factory = sqlite3.Row
+
+    def execute(self, sql, params=()):
+        if USAR_PG:
+            cur = self.conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+            cur.execute(sql.replace("?", "%s"), params)
+            return cur
+        return self.conn.execute(sql, params)
+
+    def insertar(self, sql, params=()):
+        """Hace un INSERT y devuelve el id nuevo."""
+        if USAR_PG:
+            cur = self.execute(sql + " RETURNING id", params)
+            return cur.fetchone()["id"]
+        return self.execute(sql, params).lastrowid
+
+    def commit(self):
+        self.conn.commit()
+
+    def close(self):
+        self.conn.close()
+
+
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return DB()
 
 
 def init_db():
-    conn = get_db()
-    conn.execute("""
+    pk = "SERIAL PRIMARY KEY" if USAR_PG else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    blob = "BYTEA" if USAR_PG else "BLOB"
+    db = get_db()
+    db.execute(f"""
         CREATE TABLE IF NOT EXISTS equipos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {pk},
             numero_cliente TEXT NOT NULL,
             numero_serie TEXT UNIQUE,
             nombre_equipo TEXT NOT NULL,
@@ -94,32 +135,67 @@ def init_db():
             fecha_registro TEXT NOT NULL
         )
     """)
-    conn.commit()
-    conn.close()
+    db.execute(f"""
+        CREATE TABLE IF NOT EXISTS archivos (
+            nombre TEXT PRIMARY KEY,
+            mime TEXT NOT NULL,
+            datos {blob} NOT NULL
+        )
+    """)
+    db.commit()
+    db.close()
+
+
+def guardar_archivo(db, nombre, mime, datos):
+    binario = psycopg2.Binary(datos) if USAR_PG else sqlite3.Binary(datos)
+    db.execute("INSERT INTO archivos (nombre, mime, datos) VALUES (?, ?, ?)",
+               (nombre, mime, binario))
+
+
+def procesar_pdf(archivo, prefijo):
+    """Devuelve (nombre, bytes) del PDF o None si no es válido."""
+    if not (archivo and archivo.filename and allowed_file(archivo.filename, ALLOWED_EXT_PDF)):
+        return None
+    datos = archivo.read()
+    if not datos or len(datos) > MAX_PDF_BYTES or not datos.startswith(b"%PDF"):
+        return None
+    nombre = secure_filename(f"{uuid.uuid4().hex[:8]}_{prefijo}_{archivo.filename}")
+    return nombre, datos
+
+
+def procesar_foto(archivo, prefijo):
+    """Reduce la foto (máx. 1280 px, JPEG) para que ocupe poco espacio."""
+    if not (archivo and archivo.filename and allowed_file(archivo.filename, ALLOWED_EXT_FOTO)):
+        return None
+    try:
+        img = Image.open(archivo.stream)
+        img = ImageOps.exif_transpose(img).convert("RGB")
+        img.thumbnail((1280, 1280))
+        salida = io.BytesIO()
+        img.save(salida, "JPEG", quality=82, optimize=True)
+    except Exception:
+        return None
+    nombre = secure_filename(f"{uuid.uuid4().hex[:8]}_foto_{prefijo}.jpg")
+    return nombre, salida.getvalue()
 
 
 def marcar_inactivos_vencidos():
-    conn = get_db()
-    equipos = conn.execute(
+    db = get_db()
+    equipos = db.execute(
         "SELECT id, fecha_ultimo_mant FROM equipos WHERE activo = 1"
     ).fetchall()
     hoy = date.today()
     for eq in equipos:
         f_ultimo = datetime.strptime(eq["fecha_ultimo_mant"], "%Y-%m-%d").date()
         if (hoy - f_ultimo).days > DIAS_LIMITE_INACTIVO:
-            conn.execute("UPDATE equipos SET activo = 0 WHERE id = ?", (eq["id"],))
-    conn.commit()
-    conn.close()
+            db.execute("UPDATE equipos SET activo = 0 WHERE id = ?", (eq["id"],))
+    db.commit()
+    db.close()
 
 
-def generar_qr(equipo_id):
-    url_publica = url_for("ver_equipo", equipo_id=equipo_id, _external=True)
-    img = qrcode.make(url_publica)
-    ruta = os.path.join(QR_FOLDER, f"equipo_{equipo_id}.png")
-    img.save(ruta)
-    return ruta
-
-
+# ---------------------------------------------------------------------
+# Login
+# ---------------------------------------------------------------------
 @app.route("/admin/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -140,15 +216,18 @@ def logout():
     return redirect(url_for("login"))
 
 
+# ---------------------------------------------------------------------
+# Rutas ADMIN (requieren login)
+# ---------------------------------------------------------------------
 @app.route("/admin")
 @login_required
 def admin_lista():
     marcar_inactivos_vencidos()
-    conn = get_db()
-    activos = conn.execute(
+    db = get_db()
+    activos = db.execute(
         "SELECT * FROM equipos WHERE activo = 1 ORDER BY fecha_proximo_mant ASC"
     ).fetchall()
-    conn.close()
+    db.close()
     return render_template("admin_lista.html", equipos=activos)
 
 
@@ -164,39 +243,34 @@ def admin_nuevo():
         fecha_proximo = request.form["fecha_proximo_mant"]
         tecnico = request.form["tecnico"].strip()
 
-        archivo = request.files.get("hoja_servicio")
-        nombre_archivo = None
-        if archivo and archivo.filename and allowed_file(archivo.filename, ALLOWED_EXT_PDF):
-            nombre_archivo = secure_filename(f"{numero_cliente}_{archivo.filename}")
-            archivo.save(os.path.join(UPLOAD_FOLDER, nombre_archivo))
+        pdf = procesar_pdf(request.files.get("hoja_servicio"), numero_cliente)
+        foto = procesar_foto(request.files.get("foto_equipo"), numero_cliente)
 
-        foto = request.files.get("foto_equipo")
-        nombre_foto = None
-        if foto and foto.filename and allowed_file(foto.filename, ALLOWED_EXT_FOTO):
-            nombre_foto = secure_filename(f"foto_{numero_cliente}_{foto.filename}")
-            foto.save(os.path.join(UPLOAD_FOLDER, nombre_foto))
-
-        conn = get_db()
+        db = get_db()
         try:
-            cur = conn.execute(
+            if pdf:
+                guardar_archivo(db, pdf[0], "application/pdf", pdf[1])
+            if foto:
+                guardar_archivo(db, foto[0], "image/jpeg", foto[1])
+            db.insertar(
                 """INSERT INTO equipos
                    (numero_cliente, numero_serie, nombre_equipo, ubicacion,
                     fecha_ultimo_mant, fecha_proximo_mant, tecnico,
                     hoja_servicio_archivo, foto_equipo, activo, fecha_registro)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)""",
-                (numero_cliente, numero_serie, nombre_equipo, ubicacion, fecha_ultimo,
-                 fecha_proximo, tecnico, nombre_archivo, nombre_foto, date.today().isoformat())
+                (numero_cliente, numero_serie, nombre_equipo, ubicacion,
+                 fecha_ultimo, fecha_proximo, tecnico,
+                 pdf[0] if pdf else None, foto[0] if foto else None,
+                 date.today().isoformat())
             )
-            conn.commit()
-            nuevo_id = cur.lastrowid
-        except sqlite3.IntegrityError:
-            conn.close()
+            db.commit()
+        except ErroresIntegridad:
+            db.close()
             flash("Ese número de serie ya está registrado en otro equipo.", "error")
             return redirect(url_for("admin_nuevo"))
-        conn.close()
+        db.close()
 
-        generar_qr(nuevo_id)
-        flash("Equipo registrado y QR generado correctamente.", "ok")
+        flash("Equipo registrado correctamente. Ya puedes descargar su QR o copiar su enlace NFC.", "ok")
         return redirect(url_for("admin_lista"))
 
     return render_template("admin_nuevo.html")
@@ -205,10 +279,10 @@ def admin_nuevo():
 @app.route("/admin/editar/<int:equipo_id>", methods=["GET", "POST"])
 @login_required
 def admin_editar(equipo_id):
-    conn = get_db()
-    equipo = conn.execute("SELECT * FROM equipos WHERE id = ?", (equipo_id,)).fetchone()
+    db = get_db()
+    equipo = db.execute("SELECT * FROM equipos WHERE id = ?", (equipo_id,)).fetchone()
     if equipo is None:
-        conn.close()
+        db.close()
         abort(404)
 
     if request.method == "POST":
@@ -216,40 +290,40 @@ def admin_editar(equipo_id):
         fecha_proximo = request.form["fecha_proximo_mant"]
         tecnico = request.form["tecnico"].strip()
 
-        archivo = request.files.get("hoja_servicio")
-        nombre_archivo = equipo["hoja_servicio_archivo"]
-        if archivo and archivo.filename and allowed_file(archivo.filename, ALLOWED_EXT_PDF):
-            nombre_archivo = secure_filename(f"{equipo['numero_cliente']}_{archivo.filename}")
-            archivo.save(os.path.join(UPLOAD_FOLDER, nombre_archivo))
+        nombre_pdf = equipo["hoja_servicio_archivo"]
+        pdf = procesar_pdf(request.files.get("hoja_servicio"), equipo["numero_cliente"])
+        if pdf:
+            guardar_archivo(db, pdf[0], "application/pdf", pdf[1])
+            nombre_pdf = pdf[0]
 
-        foto = request.files.get("foto_equipo")
         nombre_foto = equipo["foto_equipo"]
-        if foto and foto.filename and allowed_file(foto.filename, ALLOWED_EXT_FOTO):
-            nombre_foto = secure_filename(f"foto_{equipo['numero_cliente']}_{foto.filename}")
-            foto.save(os.path.join(UPLOAD_FOLDER, nombre_foto))
+        foto = procesar_foto(request.files.get("foto_equipo"), equipo["numero_cliente"])
+        if foto:
+            guardar_archivo(db, foto[0], "image/jpeg", foto[1])
+            nombre_foto = foto[0]
 
-        conn.execute(
+        db.execute(
             """UPDATE equipos SET fecha_ultimo_mant = ?, fecha_proximo_mant = ?,
                tecnico = ?, hoja_servicio_archivo = ?, foto_equipo = ?, activo = 1
                WHERE id = ?""",
-            (fecha_ultimo, fecha_proximo, tecnico, nombre_archivo, nombre_foto, equipo_id)
+            (fecha_ultimo, fecha_proximo, tecnico, nombre_pdf, nombre_foto, equipo_id)
         )
-        conn.commit()
-        conn.close()
+        db.commit()
+        db.close()
         flash("Mantenimiento actualizado. El QR/NFC pegado en el equipo sigue funcionando igual.", "ok")
         return redirect(url_for("admin_lista"))
 
-    conn.close()
+    db.close()
     return render_template("admin_editar.html", equipo=equipo)
 
 
 @app.route("/admin/eliminar/<int:equipo_id>", methods=["POST"])
 @login_required
 def admin_eliminar(equipo_id):
-    conn = get_db()
-    conn.execute("UPDATE equipos SET activo = 0 WHERE id = ?", (equipo_id,))
-    conn.commit()
-    conn.close()
+    db = get_db()
+    db.execute("UPDATE equipos SET activo = 0 WHERE id = ?", (equipo_id,))
+    db.commit()
+    db.close()
     flash("Equipo eliminado del listado de clientes.", "ok")
     return redirect(url_for("admin_lista"))
 
@@ -257,19 +331,25 @@ def admin_eliminar(equipo_id):
 @app.route("/admin/qr/<int:equipo_id>")
 @login_required
 def descargar_qr(equipo_id):
-    ruta = os.path.join(QR_FOLDER, f"equipo_{equipo_id}.png")
-    if not os.path.exists(ruta):
-        generar_qr(equipo_id)
-    return send_from_directory(QR_FOLDER, f"equipo_{equipo_id}.png", as_attachment=True)
+    """Genera el QR al momento (así siempre trae el dominio correcto)."""
+    url_publica = url_for("ver_equipo", equipo_id=equipo_id, _external=True)
+    salida = io.BytesIO()
+    qrcode.make(url_publica).save(salida, "PNG")
+    salida.seek(0)
+    return send_file(salida, mimetype="image/png", as_attachment=True,
+                     download_name=f"equipo_{equipo_id}.png")
 
 
+# ---------------------------------------------------------------------
+# Rutas PÚBLICAS (sin login): ficha del equipo y sus archivos
+# ---------------------------------------------------------------------
 @app.route("/equipo/<int:equipo_id>")
 def ver_equipo(equipo_id):
-    conn = get_db()
-    equipo = conn.execute(
+    db = get_db()
+    equipo = db.execute(
         "SELECT * FROM equipos WHERE id = ? AND activo = 1", (equipo_id,)
     ).fetchone()
-    conn.close()
+    db.close()
     if equipo is None:
         abort(404)
 
@@ -289,7 +369,13 @@ def ver_equipo(equipo_id):
 
 @app.route("/static/uploads/<path:filename>")
 def archivo_subido(filename):
-    return send_from_directory(UPLOAD_FOLDER, filename)
+    db = get_db()
+    fila = db.execute("SELECT mime, datos FROM archivos WHERE nombre = ?", (filename,)).fetchone()
+    db.close()
+    if fila is None:
+        abort(404)
+    return Response(bytes(fila["datos"]), mimetype=fila["mime"],
+                    headers={"Cache-Control": "public, max-age=86400"})
 
 
 @app.errorhandler(404)
