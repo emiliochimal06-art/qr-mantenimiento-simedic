@@ -17,7 +17,7 @@
       <th>Próximo mant.</th>
       <th>Técnico</th>
       <th>Hoja de servicio</th>
-      <th>QR</th>
+      <th>QR / NFC</th>
       <th></th>
     </tr>
   </thead>
@@ -37,7 +37,10 @@
           <span class="texto-tenue">— sin archivo —</span>
         {% endif %}
       </td>
-      <td><a href="{{ url_for('descargar_qr', equipo_id=eq.id) }}">Descargar QR</a></td>
+      <td>
+        <a href="{{ url_for('descargar_qr', equipo_id=eq.id) }}">Descargar QR</a><br>
+        <a href="#" class="copiar-enlace" data-url="{{ url_for('ver_equipo', equipo_id=eq.id, _external=True) }}">Copiar enlace NFC</a>
+      </td>
       <td>
         <a href="{{ url_for('admin_editar', equipo_id=eq.id) }}">Actualizar</a>
         <form method="POST" action="{{ url_for('admin_eliminar', equipo_id=eq.id) }}"
@@ -53,4 +56,16 @@
 {% else %}
 <p class="texto-tenue">Aún no hay equipos registrados.</p>
 {% endif %}
+
+<script>
+document.querySelectorAll('.copiar-enlace').forEach(function (a) {
+  a.addEventListener('click', function (e) {
+    e.preventDefault();
+    var url = a.dataset.url;
+    var listo = function () { a.textContent = '¡Copiado!'; setTimeout(function () { a.textContent = 'Copiar enlace NFC'; }, 1800); };
+    if (navigator.clipboard) { navigator.clipboard.writeText(url).then(listo); }
+    else { window.prompt('Copia este enlace:', url); }
+  });
+});
+</script>
 {% endblock %}
