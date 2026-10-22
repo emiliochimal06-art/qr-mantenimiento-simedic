@@ -6,6 +6,9 @@
   <label>Número de cliente
     <input type="text" name="numero_cliente" required>
   </label>
+  <label>Número de serie (opcional, debe ser único)
+    <input type="text" name="numero_serie">
+  </label>
   <label>Nombre / modelo del equipo
     <input type="text" name="nombre_equipo" required>
   </label>
@@ -23,6 +26,9 @@
   </label>
   <label>Hoja de servicio escaneada (PDF)
     <input type="file" name="hoja_servicio" accept="application/pdf">
+  </label>
+  <label>Foto del equipo (opcional)
+    <input type="file" name="foto_equipo" accept="image/png, image/jpeg">
   </label>
   <button type="submit" class="boton">Guardar y generar QR</button>
 </form>

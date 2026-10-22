@@ -24,7 +24,19 @@
       <span class="punto-estado"></span>{{ estado.texto }}
     </div>
 
+    {% if equipo.foto_equipo %}
+    <img class="foto-equipo" src="{{ url_for('archivo_subido', filename=equipo.foto_equipo) }}" alt="Foto del equipo">
+    {% endif %}
+
     <div class="datos-ficha">
+      {% if equipo.numero_serie %}
+      <div class="dato">
+        <span class="dato-icono" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="1.5"/><path d="M7 7V5.5A1.5 1.5 0 0 1 8.5 4h7A1.5 1.5 0 0 1 17 5.5V7"/><path d="M7 12h.01M11 12h.01M15 12h.01"/></svg>
+        </span>
+        <span class="dato-texto"><span class="dato-label">Número de serie</span><strong>{{ equipo.numero_serie }}</strong></span>
+      </div>
+      {% endif %}
       <div class="dato">
         <span class="dato-icono" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v3M16 2v3M3.5 8.5h17M4 5h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1Z"/><path d="m8.5 13.5 2 2 4.5-4.5"/></svg>

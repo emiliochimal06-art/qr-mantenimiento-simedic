@@ -11,6 +11,7 @@
   <thead>
     <tr>
       <th>No. cliente</th>
+      <th>No. serie</th>
       <th>Equipo</th>
       <th>Último mant.</th>
       <th>Próximo mant.</th>
@@ -24,6 +25,7 @@
     {% for eq in equipos %}
     <tr>
       <td>{{ eq.numero_cliente }}</td>
+      <td>{{ eq.numero_serie or "—" }}</td>
       <td>{{ eq.nombre_equipo }}</td>
       <td>{{ eq.fecha_ultimo_mant }}</td>
       <td>{{ eq.fecha_proximo_mant }}</td>

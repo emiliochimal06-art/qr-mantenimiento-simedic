@@ -9,6 +9,7 @@
 <body>
   <header class="topbar">
     <a href="{{ url_for('admin_lista') }}" class="brand">SIMEDIC · Mantenimiento</a>
+    <a href="{{ url_for('logout') }}" class="salir">Cerrar sesión</a>
   </header>
   <main class="contenedor">
     {% with mensajes = get_flashed_messages(with_categories=true) %}

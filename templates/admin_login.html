@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Iniciar sesión — SIMEDIC</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-login">
+  <main class="tarjeta-login">
+    <h1 class="login-titulo">SIMEDIC</h1>
+    <p class="login-sub">Panel de mantenimiento — acceso restringido</p>
+    {% with mensajes = get_flashed_messages(with_categories=true) %}
+      {% if mensajes %}
+        {% for categoria, msg in mensajes %}
+          <div class="alerta alerta-{{ categoria }}">{{ msg }}</div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    <form method="POST" class="formulario">
+      <label>Usuario
+        <input type="text" name="usuario" autofocus required>
+      </label>
+      <label>Contraseña
+        <input type="password" name="contrasena" required>
+      </label>
+      <button type="submit" class="boton">Entrar</button>
+    </form>
+  </main>
+</body>
+</html>
