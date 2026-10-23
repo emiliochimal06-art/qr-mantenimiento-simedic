@@ -46,7 +46,7 @@ else:
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "mantenimiento.db")
-LOGO_PATH = "/static/logo.png"
+LOGO_PATH = "/static/logo-blanco.png"
 
 DIAS_LIMITE_INACTIVO = 365
 MAX_PDF_BYTES = 8 * 1024 * 1024
@@ -66,6 +66,21 @@ ADMIN_PASSWORD_HASH = generate_password_hash(
 
 def allowed_file(filename, extensiones):
     return "." in filename and filename.rsplit(".", 1)[1].lower() in extensiones
+
+
+def info_estado(fecha_proximo):
+    """Calcula si el mantenimiento está vigente, próximo a vencer o vencido."""
+    f = datetime.strptime(fecha_proximo, "%Y-%m-%d").date()
+    dias = (f - date.today()).days
+    if dias < 0:
+        return {"clase": "vencido", "dias": dias,
+                "texto": f"Vencido hace {abs(dias)} día" + ("" if abs(dias) == 1 else "s")}
+    if dias == 0:
+        return {"clase": "proximo", "dias": dias, "texto": "Vence hoy"}
+    if dias <= 30:
+        return {"clase": "proximo", "dias": dias,
+                "texto": f"Vence en {dias} día" + ("" if dias == 1 else "s")}
+    return {"clase": "vigente", "dias": dias, "texto": "Vigente"}
 
 
 def login_required(vista):
@@ -142,8 +157,48 @@ def init_db():
             datos {blob} NOT NULL
         )
     """)
+    db.execute(f"""
+        CREATE TABLE IF NOT EXISTS mantenimientos (
+            id {pk},
+            equipo_id INTEGER NOT NULL,
+            fecha_mant TEXT NOT NULL,
+            fecha_proximo TEXT NOT NULL,
+            tecnico TEXT NOT NULL,
+            hoja_servicio_archivo TEXT,
+            registrado_por TEXT,
+            fecha_registro TEXT NOT NULL
+        )
+    """)
+    # Equipos que ya existían antes de tener historial: se les crea su
+    # primer registro con los datos que tenían (no se duplica si ya hay).
+    db.execute("""
+        INSERT INTO mantenimientos
+            (equipo_id, fecha_mant, fecha_proximo, tecnico,
+             hoja_servicio_archivo, registrado_por, fecha_registro)
+        SELECT id, fecha_ultimo_mant, fecha_proximo_mant, tecnico,
+               hoja_servicio_archivo, NULL, fecha_registro
+        FROM equipos
+        WHERE id NOT IN (SELECT equipo_id FROM mantenimientos)
+    """)
     db.commit()
     db.close()
+
+
+def registrar_mantenimiento(db, equipo_id, fecha_mant, fecha_proximo, tecnico, hoja, usuario):
+    db.execute(
+        """INSERT INTO mantenimientos
+           (equipo_id, fecha_mant, fecha_proximo, tecnico,
+            hoja_servicio_archivo, registrado_por, fecha_registro)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (equipo_id, fecha_mant, fecha_proximo, tecnico, hoja, usuario,
+         datetime.now().strftime("%Y-%m-%d %H:%M")))
+
+
+def historial_de(db, equipo_id, limite=10):
+    return db.execute(
+        """SELECT * FROM mantenimientos WHERE equipo_id = ?
+           ORDER BY fecha_mant DESC, id DESC LIMIT ?""",
+        (equipo_id, limite)).fetchall()
 
 
 def guardar_archivo(db, nombre, mime, datos):
@@ -203,6 +258,7 @@ def login():
         contrasena = request.form.get("contrasena", "")
         if usuario == ADMIN_USER and check_password_hash(ADMIN_PASSWORD_HASH, contrasena):
             session["autenticado"] = True
+            session["usuario"] = usuario
             session.permanent = True
             siguiente = request.args.get("siguiente") or url_for("admin_lista")
             return redirect(siguiente)
@@ -223,12 +279,37 @@ def logout():
 @login_required
 def admin_lista():
     marcar_inactivos_vencidos()
+    q = request.args.get("q", "").strip()
+    estado_f = request.args.get("estado", "").strip()
+    cliente = request.args.get("cliente", "").strip()
+
     db = get_db()
-    activos = db.execute(
+    filas = db.execute(
         "SELECT * FROM equipos WHERE activo = 1 ORDER BY fecha_proximo_mant ASC"
     ).fetchall()
     db.close()
-    return render_template("admin_lista.html", equipos=activos)
+
+    resumen = {"total": 0, "vencido": 0, "proximo": 0, "vigente": 0}
+    equipos = []
+    for fila in filas:
+        eq = dict(fila)
+        eq["estado"] = info_estado(eq["fecha_proximo_mant"])
+        resumen["total"] += 1
+        resumen[eq["estado"]["clase"]] += 1
+        if cliente and eq["numero_cliente"] != cliente:
+            continue
+        if estado_f in ("vencido", "proximo", "vigente") and eq["estado"]["clase"] != estado_f:
+            continue
+        if q:
+            texto = " ".join(str(eq.get(k) or "") for k in
+                             ("numero_cliente", "numero_serie", "nombre_equipo",
+                              "ubicacion", "tecnico")).lower()
+            if q.lower() not in texto:
+                continue
+        equipos.append(eq)
+
+    return render_template("admin_lista.html", equipos=equipos, resumen=resumen,
+                           q=q, estado_f=estado_f, cliente=cliente)
 
 
 @app.route("/admin/nuevo", methods=["GET", "POST"])
@@ -252,7 +333,7 @@ def admin_nuevo():
                 guardar_archivo(db, pdf[0], "application/pdf", pdf[1])
             if foto:
                 guardar_archivo(db, foto[0], "image/jpeg", foto[1])
-            db.insertar(
+            nuevo_id = db.insertar(
                 """INSERT INTO equipos
                    (numero_cliente, numero_serie, nombre_equipo, ubicacion,
                     fecha_ultimo_mant, fecha_proximo_mant, tecnico,
@@ -263,6 +344,8 @@ def admin_nuevo():
                  pdf[0] if pdf else None, foto[0] if foto else None,
                  date.today().isoformat())
             )
+            registrar_mantenimiento(db, nuevo_id, fecha_ultimo, fecha_proximo, tecnico,
+                                    pdf[0] if pdf else None, session.get("usuario"))
             db.commit()
         except ErroresIntegridad:
             db.close()
@@ -302,6 +385,8 @@ def admin_editar(equipo_id):
             guardar_archivo(db, foto[0], "image/jpeg", foto[1])
             nombre_foto = foto[0]
 
+        registrar_mantenimiento(db, equipo_id, fecha_ultimo, fecha_proximo, tecnico,
+                                pdf[0] if pdf else None, session.get("usuario"))
         db.execute(
             """UPDATE equipos SET fecha_ultimo_mant = ?, fecha_proximo_mant = ?,
                tecnico = ?, hoja_servicio_archivo = ?, foto_equipo = ?, activo = 1
@@ -313,8 +398,9 @@ def admin_editar(equipo_id):
         flash("Mantenimiento actualizado. El QR/NFC pegado en el equipo sigue funcionando igual.", "ok")
         return redirect(url_for("admin_lista"))
 
+    historial = historial_de(db, equipo_id)
     db.close()
-    return render_template("admin_editar.html", equipo=equipo)
+    return render_template("admin_editar.html", equipo=equipo, historial=historial)
 
 
 @app.route("/admin/eliminar/<int:equipo_id>", methods=["POST"])
@@ -349,21 +435,15 @@ def ver_equipo(equipo_id):
     equipo = db.execute(
         "SELECT * FROM equipos WHERE id = ? AND activo = 1", (equipo_id,)
     ).fetchone()
-    db.close()
     if equipo is None:
+        db.close()
         abort(404)
-
-    f_proximo = datetime.strptime(equipo["fecha_proximo_mant"], "%Y-%m-%d").date()
-    dias_restantes = (f_proximo - date.today()).days
-    if dias_restantes < 0:
-        estado = {"clase": "vencido", "texto": f"Vencido hace {abs(dias_restantes)} días"}
-    elif dias_restantes <= 30:
-        estado = {"clase": "proximo", "texto": f"Vence en {dias_restantes} días"}
-    else:
-        estado = {"clase": "vigente", "texto": "Vigente"}
+    historial = historial_de(db, equipo_id, 6)
+    db.close()
 
     return render_template(
-        "equipo_publico.html", equipo=equipo, logo=LOGO_PATH, estado=estado
+        "equipo_publico.html", equipo=equipo, logo=LOGO_PATH,
+        estado=info_estado(equipo["fecha_proximo_mant"]), historial=historial
     )
 
 

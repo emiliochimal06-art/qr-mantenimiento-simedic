@@ -21,4 +21,26 @@
   </label>
   <button type="submit" class="boton">Guardar cambios</button>
 </form>
+
+{% if historial %}
+<h2 class="subtitulo">Historial de mantenimientos</h2>
+<div class="tabla-scroll">
+<table class="tabla">
+  <thead>
+    <tr><th>Fecha</th><th>Próximo</th><th>Técnico</th><th>Registró</th><th>Hoja de servicio</th></tr>
+  </thead>
+  <tbody>
+    {% for h in historial %}
+    <tr>
+      <td class="nowrap">{{ h.fecha_mant }}</td>
+      <td class="nowrap">{{ h.fecha_proximo }}</td>
+      <td>{{ h.tecnico }}</td>
+      <td>{{ h.registrado_por or "—" }}</td>
+      <td>{% if h.hoja_servicio_archivo %}<a href="{{ url_for('archivo_subido', filename=h.hoja_servicio_archivo) }}" target="_blank">Ver PDF</a>{% else %}<span class="texto-tenue">—</span>{% endif %}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
 {% endblock %}

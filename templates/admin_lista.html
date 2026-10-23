@@ -2,17 +2,39 @@
 {% block titulo %}Equipos activos{% endblock %}
 {% block contenido %}
 <div class="encabezado-lista">
-  <h1>Equipos con mantenimiento activo</h1>
+  <h1>{% if cliente %}Equipos del cliente {{ cliente }}{% else %}Equipos con mantenimiento activo{% endif %}</h1>
   <a class="boton" href="{{ url_for('admin_nuevo') }}">+ Registrar equipo</a>
 </div>
 
+<div class="resumen">
+  <a class="tarjeta-resumen" href="{{ url_for('admin_lista') }}"><strong>{{ resumen.total }}</strong><span>Equipos activos</span></a>
+  <a class="tarjeta-resumen t-vencido" href="{{ url_for('admin_lista', estado='vencido') }}"><strong>{{ resumen.vencido }}</strong><span>Vencidos</span></a>
+  <a class="tarjeta-resumen t-proximo" href="{{ url_for('admin_lista', estado='proximo') }}"><strong>{{ resumen.proximo }}</strong><span>Vencen en 30 días</span></a>
+  <a class="tarjeta-resumen t-vigente" href="{{ url_for('admin_lista', estado='vigente') }}"><strong>{{ resumen.vigente }}</strong><span>Vigentes</span></a>
+</div>
+
+<form method="GET" class="filtros">
+  {% if cliente %}<input type="hidden" name="cliente" value="{{ cliente }}">{% endif %}
+  <input type="search" name="q" value="{{ q }}" placeholder="Buscar por cliente, serie, equipo, ubicación o técnico">
+  <select name="estado">
+    <option value="">Todos los estados</option>
+    <option value="vencido" {% if estado_f == 'vencido' %}selected{% endif %}>Vencidos</option>
+    <option value="proximo" {% if estado_f == 'proximo' %}selected{% endif %}>Vencen en 30 días</option>
+    <option value="vigente" {% if estado_f == 'vigente' %}selected{% endif %}>Vigentes</option>
+  </select>
+  <button type="submit" class="boton">Buscar</button>
+  {% if q or estado_f or cliente %}<a class="limpiar" href="{{ url_for('admin_lista') }}">Limpiar filtros</a>{% endif %}
+</form>
+
 {% if equipos %}
+<div class="tabla-scroll">
 <table class="tabla">
   <thead>
     <tr>
       <th>No. cliente</th>
       <th>No. serie</th>
       <th>Equipo</th>
+      <th>Estado</th>
       <th>Último mant.</th>
       <th>Próximo mant.</th>
       <th>Técnico</th>
@@ -24,11 +46,12 @@
   <tbody>
     {% for eq in equipos %}
     <tr>
-      <td>{{ eq.numero_cliente }}</td>
+      <td><a href="{{ url_for('admin_lista', cliente=eq.numero_cliente) }}" title="Ver todos los equipos de este cliente">{{ eq.numero_cliente }}</a></td>
       <td>{{ eq.numero_serie or "—" }}</td>
       <td>{{ eq.nombre_equipo }}</td>
-      <td>{{ eq.fecha_ultimo_mant }}</td>
-      <td>{{ eq.fecha_proximo_mant }}</td>
+      <td><span class="insignia ins-{{ eq.estado.clase }}">{{ eq.estado.texto }}</span></td>
+      <td class="nowrap">{{ eq.fecha_ultimo_mant }}</td>
+      <td class="nowrap">{{ eq.fecha_proximo_mant }}</td>
       <td>{{ eq.tecnico }}</td>
       <td>
         {% if eq.hoja_servicio_archivo %}
@@ -53,6 +76,9 @@
     {% endfor %}
   </tbody>
 </table>
+</div>
+{% elif q or estado_f or cliente %}
+<p class="texto-tenue">Ningún equipo coincide con la búsqueda.</p>
 {% else %}
 <p class="texto-tenue">Aún no hay equipos registrados.</p>
 {% endif %}

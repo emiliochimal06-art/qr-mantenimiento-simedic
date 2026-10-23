@@ -1,11 +1,22 @@
 <!DOCTYPE html>
 <html lang="es">
-<head><meta charset="UTF-8"><title>No encontrado</title>
-<link rel="stylesheet" href="/static/css/style.css"></head>
-<body>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>No encontrado — SIMEDIC</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-ficha">
+  <div class="ficha-header">
+    <img src="{{ url_for('static', filename='logo-blanco.png') }}" alt="SIMEDIC" class="logo-header">
+  </div>
   <main class="ficha">
-    <h1>Equipo no encontrado</h1>
-    <p class="texto-tenue">Este equipo no existe o fue eliminado del listado de clientes.</p>
+    <div class="ficha-titulo">
+      <h1>Equipo no encontrado</h1>
+    </div>
+    <p class="texto-tenue" style="text-align:center">Este equipo no existe o fue eliminado del listado de clientes.</p>
   </main>
+  <p class="ficha-pie">Sistema de mantenimiento preventivo · SIMEDIC</p>
 </body>
 </html>

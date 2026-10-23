@@ -20,16 +20,20 @@ body {
 }
 h1 { font-family: var(--fuente-titulo); }
 .topbar {
-  background: var(--azul-oscuro);
-  padding: 14px 24px;
+  background: #fff;
+  border-bottom: 1px solid var(--borde);
+  padding: 10px 24px;
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-.salir { color: rgba(255,255,255,0.7); text-decoration: none; font-size: 13.5px; }
-.salir:hover { color: #fff; }
-.brand { color: #fff; text-decoration: none; font-weight: 600; font-size: 18px; }
-.contenedor { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+.brand { display: flex; align-items: center; gap: 14px; text-decoration: none; }
+.logo-barra { height: 34px; width: auto; display: block; }
+.brand-sep { width: 1px; height: 24px; background: var(--borde); }
+.brand-texto { color: var(--texto-tenue); font-size: 13.5px; font-weight: 500; }
+.salir { color: var(--texto-tenue); text-decoration: none; font-size: 13.5px; font-weight: 500; }
+.salir:hover { color: var(--azul); }
+.contenedor { max-width: 1180px; margin: 24px auto; padding: 0 16px; }
 
 .encabezado-lista { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 h1 { font-size: 22px; margin: 0 0 4px; }
@@ -73,7 +77,7 @@ h1 { font-size: 22px; margin: 0 0 4px; }
   display: flex;
   justify-content: center;
 }
-.logo-header { height: 40px; width: auto; display: block; }
+.logo-header { height: 46px; width: auto; display: block; }
 
 .ficha {
   max-width: 440px;
@@ -177,13 +181,115 @@ h1 { font-size: 22px; margin: 0 0 4px; }
   margin-top: 22px;
 }
 
-/* Login */
-.pagina-login { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--azul); }
-.tarjeta-login { background: #fff; border-radius: 16px; padding: 36px 30px; width: 100%; max-width: 340px; box-shadow: 0 12px 32px rgba(0,0,0,0.25); }
-.login-titulo { font-family: var(--fuente-titulo); color: var(--azul); font-size: 22px; margin: 0 0 4px; text-align: center; }
-.login-sub { color: var(--texto-tenue); font-size: 13px; text-align: center; margin: 0 0 22px; }
-.pagina-login .formulario { padding: 0; max-width: none; }
-.pagina-login .boton { margin-top: 4px; }
-
 /* Foto del equipo en la ficha pública */
 .foto-equipo { display: block; width: 100%; height: auto; max-height: 380px; object-fit: contain; background: #f2f4f7; border-radius: 10px; margin-bottom: 18px; }
+
+/* ---------------------------------------------------------------- */
+/* Login                                                             */
+/* ---------------------------------------------------------------- */
+.pagina-login {
+  margin: 0;
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 520px at 12% -8%, rgba(63,191,168,0.22), transparent 60%),
+    radial-gradient(700px 480px at 105% 108%, rgba(63,191,168,0.12), transparent 60%),
+    var(--azul);
+}
+.login-fondo {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 20px;
+}
+.login-logo { width: min(290px, 72vw); height: auto; margin-bottom: 30px; }
+.tarjeta-login {
+  background: #fff;
+  border-radius: 18px;
+  padding: 32px 30px 30px;
+  width: 100%;
+  max-width: 380px;
+  box-shadow: 0 18px 50px rgba(5, 10, 30, 0.45);
+}
+.tarjeta-login h1 { font-size: 23px; color: var(--azul); margin: 0 0 6px; letter-spacing: -0.01em; }
+.login-sub { color: var(--texto-tenue); font-size: 13.5px; line-height: 1.45; margin: 0 0 22px; }
+.login-form label { display: block; font-size: 13px; font-weight: 600; color: #374151; margin: 0 0 6px; }
+.login-form input {
+  width: 100%;
+  padding: 11px 12px;
+  border: 1px solid #d5dae3;
+  border-radius: 9px;
+  font-size: 15px;
+  font-family: var(--fuente-texto);
+  background: #fff;
+  margin-bottom: 16px;
+}
+.login-form input:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px rgba(63, 191, 168, 0.25);
+}
+.login-form input:-webkit-autofill { -webkit-box-shadow: 0 0 0 1000px #fff inset; }
+.campo-clave { position: relative; }
+.campo-clave input { padding-right: 82px; }
+.ver-clave {
+  position: absolute; right: 6px; top: 5px;
+  background: none; border: 0; cursor: pointer;
+  color: var(--teal-oscuro); font-weight: 600; font-size: 12.5px; padding: 7px 8px;
+}
+.boton-bloque { width: 100%; padding: 12px; font-size: 15px; margin-top: 4px; }
+.login-pie { color: rgba(255, 255, 255, 0.55); font-size: 12px; margin: 22px 0 0; text-align: center; }
+
+/* ---------------------------------------------------------------- */
+/* Panel: resumen, filtros, estado, historial                        */
+/* ---------------------------------------------------------------- */
+.resumen { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+.tarjeta-resumen {
+  background: #fff; border: 1px solid var(--borde); border-left: 4px solid var(--azul);
+  border-radius: 12px; padding: 14px 16px; text-decoration: none; color: inherit;
+  display: flex; flex-direction: column; gap: 2px; transition: box-shadow 0.15s ease;
+}
+.tarjeta-resumen:hover { box-shadow: 0 4px 14px rgba(18, 24, 47, 0.1); }
+.tarjeta-resumen strong { font-family: var(--fuente-titulo); font-size: 26px; line-height: 1.1; color: var(--azul); }
+.tarjeta-resumen span { font-size: 12.5px; color: var(--texto-tenue); }
+.t-vencido { border-left-color: var(--rojo); } .t-vencido strong { color: var(--rojo); }
+.t-proximo { border-left-color: var(--ambar); } .t-proximo strong { color: var(--ambar); }
+.t-vigente { border-left-color: var(--teal-oscuro); } .t-vigente strong { color: var(--teal-oscuro); }
+
+.filtros { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.filtros input[type=search] {
+  flex: 1 1 260px; padding: 10px 12px; border: 1px solid var(--borde);
+  border-radius: 9px; font-size: 14px; font-family: inherit; background: #fff;
+}
+.filtros select { padding: 10px 12px; border: 1px solid var(--borde); border-radius: 9px; background: #fff; font-size: 14px; font-family: inherit; }
+.limpiar { align-self: center; font-size: 13.5px; color: var(--texto-tenue); }
+
+.tabla-scroll { overflow-x: auto; }
+.tabla td { vertical-align: top; }
+.subtitulo { font-size: 18px; margin: 30px 0 12px; }
+
+.insignia { display: inline-block; padding: 3px 10px; border-radius: 100px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.ins-vigente { background: rgba(63, 191, 168, 0.14); color: var(--teal-oscuro); }
+.ins-proximo { background: rgba(184, 121, 10, 0.14); color: var(--ambar); }
+.ins-vencido { background: rgba(192, 57, 43, 0.12); color: var(--rojo); }
+
+.historial { margin-top: 26px; border-top: 1px solid var(--borde); padding-top: 18px; }
+.historial h2 { font-size: 15px; color: var(--azul); margin: 0 0 10px; }
+.historial ul { list-style: none; margin: 0; padding: 0; }
+.historial li { display: flex; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--borde); font-size: 13.5px; }
+.historial li:last-child { border-bottom: none; }
+.h-fecha { font-weight: 600; color: #1f2937; min-width: 92px; }
+.h-tec { color: var(--texto-tenue); flex: 1; }
+.historial a { color: var(--teal-oscuro); font-weight: 600; text-decoration: none; }
+
+@media (max-width: 700px) {
+  .resumen { grid-template-columns: repeat(2, 1fr); }
+  .brand-sep, .brand-texto { display: none; }
+}
+
+/* Enlaces del panel con los colores de la marca; fechas sin partirse */
+.tabla a { color: var(--teal-oscuro); font-weight: 500; text-decoration: none; }
+.tabla a:hover { text-decoration: underline; }
+.tabla td.nowrap { white-space: nowrap; }
+.limpiar:hover { color: var(--azul); }

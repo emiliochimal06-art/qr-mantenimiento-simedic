@@ -73,6 +73,21 @@
     {% else %}
     <p class="texto-tenue">Aún no hay hoja de servicio cargada para este mantenimiento.</p>
     {% endif %}
+
+    {% if historial|length > 1 %}
+    <section class="historial">
+      <h2>Historial de mantenimientos</h2>
+      <ul>
+        {% for h in historial %}
+        <li>
+          <span class="h-fecha">{{ h.fecha_mant }}</span>
+          <span class="h-tec">{{ h.tecnico }}</span>
+          {% if h.hoja_servicio_archivo %}<a href="{{ url_for('archivo_subido', filename=h.hoja_servicio_archivo) }}" target="_blank">PDF</a>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
   </main>
 
   <p class="ficha-pie">Sistema de mantenimiento preventivo · SIMEDIC</p>

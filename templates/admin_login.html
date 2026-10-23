@@ -8,25 +8,43 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="pagina-login">
-  <main class="tarjeta-login">
-    <h1 class="login-titulo">SIMEDIC</h1>
-    <p class="login-sub">Panel de mantenimiento — acceso restringido</p>
-    {% with mensajes = get_flashed_messages(with_categories=true) %}
-      {% if mensajes %}
+  <div class="login-fondo">
+    <img src="{{ url_for('static', filename='logo-blanco.png') }}" alt="SIMEDIC — Servicios Integrales Médicos" class="login-logo">
+
+    <main class="tarjeta-login">
+      <h1>Bienvenido</h1>
+      <p class="login-sub">Ingresa para administrar los mantenimientos de equipo médico.</p>
+
+      {% with mensajes = get_flashed_messages(with_categories=true) %}
         {% for categoria, msg in mensajes %}
           <div class="alerta alerta-{{ categoria }}">{{ msg }}</div>
         {% endfor %}
-      {% endif %}
-    {% endwith %}
-    <form method="POST" class="formulario">
-      <label>Usuario
-        <input type="text" name="usuario" autofocus required>
-      </label>
-      <label>Contraseña
-        <input type="password" name="contrasena" required>
-      </label>
-      <button type="submit" class="boton">Entrar</button>
-    </form>
-  </main>
+      {% endwith %}
+
+      <form method="POST" class="login-form">
+        <label for="usuario">Usuario</label>
+        <input id="usuario" name="usuario" type="text" autocomplete="username" autofocus required>
+
+        <label for="contrasena">Contraseña</label>
+        <div class="campo-clave">
+          <input id="contrasena" name="contrasena" type="password" autocomplete="current-password" required>
+          <button type="button" class="ver-clave" id="verClave">Mostrar</button>
+        </div>
+
+        <button type="submit" class="boton boton-bloque">Entrar</button>
+      </form>
+    </main>
+
+    <p class="login-pie">Acceso exclusivo para personal autorizado de SIMEDIC</p>
+  </div>
+  <script>
+    var campo = document.getElementById('contrasena');
+    var boton = document.getElementById('verClave');
+    boton.addEventListener('click', function () {
+      var oculto = campo.type === 'password';
+      campo.type = oculto ? 'text' : 'password';
+      boton.textContent = oculto ? 'Ocultar' : 'Mostrar';
+    });
+  </script>
 </body>
 </html>
