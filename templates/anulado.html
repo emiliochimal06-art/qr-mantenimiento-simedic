@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Enlace anulado — SIMEDIC</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="pagina-ficha">
+  <div class="ficha-header">
+    <img src="{{ logo }}" alt="SIMEDIC" class="logo-header">
+  </div>
+  <main class="ficha">
+    <div class="anulado-icono" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>
+    </div>
+    <div class="ficha-titulo">
+      <h1>Enlace anulado</h1>
+      <span class="chip-cliente">{{ equipo.nombre_equipo }}{% if equipo.numero_serie %} · Serie {{ equipo.numero_serie }}{% endif %}</span>
+    </div>
+    <p class="anulado-texto">Este equipo ya no cuenta con un programa de mantenimiento activo con SIMEDIC, por lo que su ficha ya no está disponible.</p>
+    <p class="anulado-texto">Si crees que es un error o quieres reactivar el servicio, comunícate con SIMEDIC.</p>
+  </main>
+  <p class="ficha-pie">Sistema de mantenimiento preventivo · SIMEDIC</p>
+</body>
+</html>

@@ -1,46 +1,49 @@
 {% extends "base.html" %}
-{% block titulo %}Equipos activos{% endblock %}
+{% block titulo %}Equipos{% endblock %}
 {% block contenido %}
 <div class="encabezado-lista">
-  <h1>{% if cliente %}Equipos del cliente {{ cliente }}{% else %}Equipos con mantenimiento activo{% endif %}</h1>
+  <h1>{% if cliente %}Equipos del cliente {{ cliente }}{% elif vista == 'bajas' %}Inactivos y cancelados{% else %}Equipos con mantenimiento activo{% endif %}</h1>
   <a class="boton" href="{{ url_for('admin_nuevo') }}">+ Registrar equipo</a>
 </div>
 
+<nav class="pestanas">
+  <a href="{{ url_for('admin_lista') }}" class="{{ 'activa' if vista != 'bajas' else '' }}">Activos <span>{{ resumen.total }}</span></a>
+  <a href="{{ url_for('admin_lista', vista='bajas') }}" class="{{ 'activa' if vista == 'bajas' else '' }}">Inactivos y cancelados <span>{{ n_bajas }}</span></a>
+</nav>
+
+{% if vista != 'bajas' %}
 <div class="resumen">
   <a class="tarjeta-resumen" href="{{ url_for('admin_lista') }}"><strong>{{ resumen.total }}</strong><span>Equipos activos</span></a>
   <a class="tarjeta-resumen t-vencido" href="{{ url_for('admin_lista', estado='vencido') }}"><strong>{{ resumen.vencido }}</strong><span>Vencidos</span></a>
   <a class="tarjeta-resumen t-proximo" href="{{ url_for('admin_lista', estado='proximo') }}"><strong>{{ resumen.proximo }}</strong><span>Vencen en 30 días</span></a>
   <a class="tarjeta-resumen t-vigente" href="{{ url_for('admin_lista', estado='vigente') }}"><strong>{{ resumen.vigente }}</strong><span>Vigentes</span></a>
 </div>
+{% endif %}
 
 <form method="GET" class="filtros">
+  {% if vista == 'bajas' %}<input type="hidden" name="vista" value="bajas">{% endif %}
   {% if cliente %}<input type="hidden" name="cliente" value="{{ cliente }}">{% endif %}
   <input type="search" name="q" value="{{ q }}" placeholder="Buscar por cliente, serie, equipo, ubicación o técnico">
+  {% if vista != 'bajas' %}
   <select name="estado">
     <option value="">Todos los estados</option>
     <option value="vencido" {% if estado_f == 'vencido' %}selected{% endif %}>Vencidos</option>
     <option value="proximo" {% if estado_f == 'proximo' %}selected{% endif %}>Vencen en 30 días</option>
     <option value="vigente" {% if estado_f == 'vigente' %}selected{% endif %}>Vigentes</option>
   </select>
+  {% endif %}
   <button type="submit" class="boton">Buscar</button>
-  {% if q or estado_f or cliente %}<a class="limpiar" href="{{ url_for('admin_lista') }}">Limpiar filtros</a>{% endif %}
+  {% if q or estado_f or cliente %}<a class="limpiar" href="{{ url_for('admin_lista', vista='bajas' if vista == 'bajas' else None) }}">Limpiar filtros</a>{% endif %}
 </form>
 
-{% if equipos %}
+{% if equipos and vista != 'bajas' %}
 <div class="tabla-scroll">
 <table class="tabla">
   <thead>
     <tr>
-      <th>No. cliente</th>
-      <th>No. serie</th>
-      <th>Equipo</th>
-      <th>Estado</th>
-      <th>Último mant.</th>
-      <th>Próximo mant.</th>
-      <th>Técnico</th>
-      <th>Hoja de servicio</th>
-      <th>QR / NFC</th>
-      <th></th>
+      <th>No. cliente</th><th>No. serie</th><th>Equipo</th><th>Estado</th>
+      <th>Último mant.</th><th>Próximo mant.</th><th>Técnico</th>
+      <th>Hoja de servicio</th><th>QR / NFC</th><th></th>
     </tr>
   </thead>
   <tbody>
@@ -65,20 +68,45 @@
         <a href="#" class="copiar-enlace" data-url="{{ url_for('ver_equipo', equipo_id=eq.id, _external=True) }}">Copiar enlace NFC</a>
       </td>
       <td>
-        <a href="{{ url_for('admin_editar', equipo_id=eq.id) }}">Actualizar</a>
-        <form method="POST" action="{{ url_for('admin_eliminar', equipo_id=eq.id) }}"
-              style="display:inline"
-              onsubmit="return confirm('¿Eliminar este equipo del listado de clientes?');">
-          <button type="submit" class="link-peligro">Eliminar</button>
-        </form>
+        <a href="{{ url_for('admin_editar', equipo_id=eq.id) }}">Actualizar</a><br>
+        <a href="{{ url_for('admin_baja', equipo_id=eq.id) }}" class="link-peligro">Dar de baja</a>
       </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 </div>
+
+{% elif equipos %}
+<div class="tabla-scroll">
+<table class="tabla">
+  <thead>
+    <tr>
+      <th>No. cliente</th><th>No. serie</th><th>Equipo</th><th>Tipo</th>
+      <th>Fecha de baja</th><th>Motivo</th><th>Último mant.</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for eq in equipos %}
+    <tr>
+      <td><a href="{{ url_for('admin_lista', vista='bajas', cliente=eq.numero_cliente) }}">{{ eq.numero_cliente }}</a></td>
+      <td>{{ eq.numero_serie or "—" }}</td>
+      <td>{{ eq.nombre_equipo }}</td>
+      <td><span class="insignia ins-{{ eq.tipo_baja or 'inactivo' }}">{{ 'Cancelado' if eq.tipo_baja == 'cancelado' else 'Inactivo' }}</span></td>
+      <td class="nowrap">{{ eq.fecha_baja or "—" }}</td>
+      <td class="motivo">{{ eq.motivo_baja or "—" }}</td>
+      <td class="nowrap">{{ eq.fecha_ultimo_mant }}</td>
+      <td><a href="{{ url_for('admin_editar', equipo_id=eq.id) }}" title="Registrar un mantenimiento nuevo reactiva el equipo y su enlace">Reactivar / ver historial</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+
 {% elif q or estado_f or cliente %}
 <p class="texto-tenue">Ningún equipo coincide con la búsqueda.</p>
+{% elif vista == 'bajas' %}
+<p class="texto-tenue">No hay equipos inactivos ni cancelados.</p>
 {% else %}
 <p class="texto-tenue">Aún no hay equipos registrados.</p>
 {% endif %}

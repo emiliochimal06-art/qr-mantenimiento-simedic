@@ -293,3 +293,39 @@ h1 { font-size: 22px; margin: 0 0 4px; }
 .tabla a:hover { text-decoration: underline; }
 .tabla td.nowrap { white-space: nowrap; }
 .limpiar:hover { color: var(--azul); }
+
+/* ---------------------------------------------------------------- */
+/* Bajas: pestañas, tipos, formulario y página de enlace anulado     */
+/* ---------------------------------------------------------------- */
+.pestanas { display: flex; gap: 6px; margin: 0 0 18px; border-bottom: 1px solid var(--borde); }
+.pestanas a {
+  padding: 10px 16px; text-decoration: none; color: var(--texto-tenue); font-weight: 500; font-size: 14px;
+  border-bottom: 2px solid transparent; margin-bottom: -1px;
+}
+.pestanas a:hover { color: var(--azul); }
+.pestanas a.activa { color: var(--azul); border-bottom-color: var(--teal); font-weight: 600; }
+.pestanas a span {
+  display: inline-block; min-width: 22px; text-align: center; margin-left: 6px; padding: 1px 7px;
+  border-radius: 100px; background: rgba(28, 37, 70, 0.08); font-size: 12px;
+}
+
+.ins-inactivo { background: rgba(107, 114, 128, 0.16); color: #4b5563; }
+.ins-cancelado { background: rgba(192, 57, 43, 0.12); color: var(--rojo); }
+.tabla a.link-peligro { color: var(--rojo); }
+.tabla td.motivo { max-width: 260px; }
+
+.formulario-baja { max-width: 520px; }
+.opcion-baja { flex-direction: row !important; align-items: flex-start; gap: 12px !important; padding: 12px 14px; border: 1px solid var(--borde); border-radius: 10px; cursor: pointer; font-weight: 400 !important; }
+.opcion-baja input { width: auto !important; margin-top: 3px; }
+.opcion-baja span { display: flex; flex-direction: column; gap: 2px; }
+.opcion-baja strong { font-size: 14.5px; color: #1f2937; }
+.opcion-baja small { font-size: 12.5px; color: var(--texto-tenue); font-weight: 400; }
+.opcion-baja:has(input:checked) { border-color: var(--teal); background: rgba(63, 191, 168, 0.07); }
+.formulario textarea { padding: 9px 10px; border: 1px solid var(--borde); border-radius: 6px; font-size: 14px; font-family: inherit; resize: vertical; }
+.acciones-form { display: flex; align-items: center; gap: 16px; }
+.boton-peligro { background: var(--rojo); }
+.boton-peligro:hover { background: #a02f23; }
+
+.anulado-icono { width: 54px; height: 54px; margin: 0 auto 14px; border-radius: 50%; background: rgba(192, 57, 43, 0.1); color: var(--rojo); display: flex; align-items: center; justify-content: center; }
+.anulado-icono svg { width: 28px; height: 28px; }
+.anulado-texto { text-align: center; color: #4b5563; font-size: 14.5px; line-height: 1.55; margin: 14px 0 0; }

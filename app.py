@@ -130,6 +130,16 @@ def get_db():
     return DB()
 
 
+def asegurar_columna(db, tabla, columna, tipo):
+    """Agrega una columna si no existe (para bases creadas con versiones anteriores)."""
+    if USAR_PG:
+        db.execute(f"ALTER TABLE {tabla} ADD COLUMN IF NOT EXISTS {columna} {tipo}")
+    else:
+        existentes = [f["name"] for f in db.execute(f"PRAGMA table_info({tabla})").fetchall()]
+        if columna not in existentes:
+            db.execute(f"ALTER TABLE {tabla} ADD COLUMN {columna} {tipo}")
+
+
 def init_db():
     pk = "SERIAL PRIMARY KEY" if USAR_PG else "INTEGER PRIMARY KEY AUTOINCREMENT"
     blob = "BYTEA" if USAR_PG else "BLOB"
@@ -147,8 +157,18 @@ def init_db():
             hoja_servicio_archivo TEXT,
             foto_equipo TEXT,
             activo INTEGER NOT NULL DEFAULT 1,
-            fecha_registro TEXT NOT NULL
+            fecha_registro TEXT NOT NULL,
+            tipo_baja TEXT,
+            motivo_baja TEXT,
+            fecha_baja TEXT
         )
+    """)
+    for columna in ("tipo_baja", "motivo_baja", "fecha_baja"):
+        asegurar_columna(db, "equipos", columna, "TEXT")
+    db.execute("""
+        UPDATE equipos SET tipo_baja = 'inactivo',
+               motivo_baja = 'Baja anterior (sin motivo registrado)'
+        WHERE activo = 0 AND tipo_baja IS NULL
     """)
     db.execute(f"""
         CREATE TABLE IF NOT EXISTS archivos (
@@ -243,7 +263,10 @@ def marcar_inactivos_vencidos():
     for eq in equipos:
         f_ultimo = datetime.strptime(eq["fecha_ultimo_mant"], "%Y-%m-%d").date()
         if (hoy - f_ultimo).days > DIAS_LIMITE_INACTIVO:
-            db.execute("UPDATE equipos SET activo = 0 WHERE id = ?", (eq["id"],))
+            db.execute(
+                """UPDATE equipos SET activo = 0, tipo_baja = 'inactivo',
+                   motivo_baja = ?, fecha_baja = ? WHERE id = ?""",
+                ("Sin renovar por más de 1 año", hoy.isoformat(), eq["id"]))
     db.commit()
     db.close()
 
@@ -279,37 +302,48 @@ def logout():
 @login_required
 def admin_lista():
     marcar_inactivos_vencidos()
+    vista = "bajas" if request.args.get("vista") == "bajas" else "activos"
     q = request.args.get("q", "").strip()
     estado_f = request.args.get("estado", "").strip()
     cliente = request.args.get("cliente", "").strip()
 
     db = get_db()
-    filas = db.execute(
-        "SELECT * FROM equipos WHERE activo = 1 ORDER BY fecha_proximo_mant ASC"
-    ).fetchall()
+    filas = db.execute("SELECT * FROM equipos ORDER BY fecha_proximo_mant ASC").fetchall()
     db.close()
 
     resumen = {"total": 0, "vencido": 0, "proximo": 0, "vigente": 0}
+    n_bajas = 0
     equipos = []
     for fila in filas:
         eq = dict(fila)
-        eq["estado"] = info_estado(eq["fecha_proximo_mant"])
-        resumen["total"] += 1
-        resumen[eq["estado"]["clase"]] += 1
+        es_activo = bool(eq["activo"])
+        if es_activo:
+            eq["estado"] = info_estado(eq["fecha_proximo_mant"])
+            resumen["total"] += 1
+            resumen[eq["estado"]["clase"]] += 1
+        else:
+            n_bajas += 1
+        if es_activo != (vista == "activos"):
+            continue
         if cliente and eq["numero_cliente"] != cliente:
             continue
-        if estado_f in ("vencido", "proximo", "vigente") and eq["estado"]["clase"] != estado_f:
+        if vista == "activos" and estado_f in ("vencido", "proximo", "vigente") \
+                and eq["estado"]["clase"] != estado_f:
             continue
         if q:
             texto = " ".join(str(eq.get(k) or "") for k in
                              ("numero_cliente", "numero_serie", "nombre_equipo",
-                              "ubicacion", "tecnico")).lower()
+                              "ubicacion", "tecnico", "motivo_baja")).lower()
             if q.lower() not in texto:
                 continue
         equipos.append(eq)
 
+    if vista == "bajas":
+        equipos.sort(key=lambda e: e.get("fecha_baja") or "", reverse=True)
+
     return render_template("admin_lista.html", equipos=equipos, resumen=resumen,
-                           q=q, estado_f=estado_f, cliente=cliente)
+                           n_bajas=n_bajas, vista=vista, q=q, estado_f=estado_f,
+                           cliente=cliente)
 
 
 @app.route("/admin/nuevo", methods=["GET", "POST"])
@@ -389,13 +423,17 @@ def admin_editar(equipo_id):
                                 pdf[0] if pdf else None, session.get("usuario"))
         db.execute(
             """UPDATE equipos SET fecha_ultimo_mant = ?, fecha_proximo_mant = ?,
-               tecnico = ?, hoja_servicio_archivo = ?, foto_equipo = ?, activo = 1
+               tecnico = ?, hoja_servicio_archivo = ?, foto_equipo = ?, activo = 1,
+               tipo_baja = NULL, motivo_baja = NULL, fecha_baja = NULL
                WHERE id = ?""",
             (fecha_ultimo, fecha_proximo, tecnico, nombre_pdf, nombre_foto, equipo_id)
         )
         db.commit()
         db.close()
-        flash("Mantenimiento actualizado. El QR/NFC pegado en el equipo sigue funcionando igual.", "ok")
+        if equipo["activo"]:
+            flash("Mantenimiento actualizado. El QR/NFC pegado en el equipo sigue funcionando igual.", "ok")
+        else:
+            flash("Equipo reactivado: su enlace QR/NFC vuelve a mostrar la ficha.", "ok")
         return redirect(url_for("admin_lista"))
 
     historial = historial_de(db, equipo_id)
@@ -403,15 +441,35 @@ def admin_editar(equipo_id):
     return render_template("admin_editar.html", equipo=equipo, historial=historial)
 
 
-@app.route("/admin/eliminar/<int:equipo_id>", methods=["POST"])
+@app.route("/admin/baja/<int:equipo_id>", methods=["GET", "POST"])
 @login_required
-def admin_eliminar(equipo_id):
+def admin_baja(equipo_id):
+    """Da de baja un equipo SIN borrarlo: se conserva todo su historial y su
+    enlace QR/NFC pasa a mostrar 'Enlace anulado'."""
     db = get_db()
-    db.execute("UPDATE equipos SET activo = 0 WHERE id = ?", (equipo_id,))
-    db.commit()
+    equipo = db.execute("SELECT * FROM equipos WHERE id = ?", (equipo_id,)).fetchone()
+    if equipo is None:
+        db.close()
+        abort(404)
+
+    if request.method == "POST":
+        tipo = request.form.get("tipo", "")
+        if tipo not in ("inactivo", "cancelado"):
+            db.close()
+            flash("Elige el tipo de baja.", "error")
+            return redirect(url_for("admin_baja", equipo_id=equipo_id))
+        motivo = request.form.get("motivo", "").strip() or None
+        db.execute(
+            """UPDATE equipos SET activo = 0, tipo_baja = ?, motivo_baja = ?,
+               fecha_baja = ? WHERE id = ?""",
+            (tipo, motivo, date.today().isoformat(), equipo_id))
+        db.commit()
+        db.close()
+        flash("Equipo dado de baja. Su historial se conserva y su enlace QR/NFC quedó anulado.", "ok")
+        return redirect(url_for("admin_lista"))
+
     db.close()
-    flash("Equipo eliminado del listado de clientes.", "ok")
-    return redirect(url_for("admin_lista"))
+    return render_template("admin_baja.html", equipo=equipo)
 
 
 @app.route("/admin/qr/<int:equipo_id>")
@@ -432,12 +490,13 @@ def descargar_qr(equipo_id):
 @app.route("/equipo/<int:equipo_id>")
 def ver_equipo(equipo_id):
     db = get_db()
-    equipo = db.execute(
-        "SELECT * FROM equipos WHERE id = ? AND activo = 1", (equipo_id,)
-    ).fetchone()
+    equipo = db.execute("SELECT * FROM equipos WHERE id = ?", (equipo_id,)).fetchone()
     if equipo is None:
         db.close()
         abort(404)
+    if not equipo["activo"]:
+        db.close()
+        return render_template("anulado.html", equipo=equipo, logo=LOGO_PATH), 410
     historial = historial_de(db, equipo_id, 6)
     db.close()
 
@@ -456,6 +515,12 @@ def archivo_subido(filename):
         abort(404)
     return Response(bytes(fila["datos"]), mimetype=fila["mime"],
                     headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.route("/salud")
+def salud():
+    """Respuesta mínima para monitores externos; no consulta la base de datos."""
+    return "ok", 200, {"Cache-Control": "no-store"}
 
 
 @app.errorhandler(404)

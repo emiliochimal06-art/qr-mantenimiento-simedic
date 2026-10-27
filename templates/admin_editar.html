@@ -3,6 +3,9 @@
 {% block contenido %}
 <h1>Actualizar mantenimiento — {{ equipo.nombre_equipo }} ({{ equipo.numero_cliente }})</h1>
 <p class="texto-tenue">El QR físico pegado en el equipo NO cambia; solo se actualiza la información que muestra.</p>
+{% if not equipo.activo %}
+<div class="alerta alerta-error">Este equipo está dado de baja ({{ 'cancelado' if equipo.tipo_baja == 'cancelado' else 'inactivo' }}{% if equipo.motivo_baja %}: {{ equipo.motivo_baja }}{% endif %}). Al guardar un mantenimiento nuevo se reactiva y su enlace QR/NFC vuelve a funcionar.</div>
+{% endif %}
 <form method="POST" enctype="multipart/form-data" class="formulario">
   <label>Fecha de último mantenimiento
     <input type="date" name="fecha_ultimo_mant" value="{{ equipo.fecha_ultimo_mant }}" required>

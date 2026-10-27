@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block titulo %}Dar de baja{% endblock %}
+{% block contenido %}
+<h1>Dar de baja — {{ equipo.nombre_equipo }} ({{ equipo.numero_cliente }})</h1>
+<p class="texto-tenue">El equipo <strong>no se borra</strong>: queda en la pestaña "Inactivos y cancelados" con todo su historial. Su QR/NFC mostrará "Enlace anulado". Si el cliente regresa, registrar un mantenimiento nuevo lo reactiva.</p>
+
+<form method="POST" class="formulario formulario-baja">
+  <label class="opcion-baja">
+    <input type="radio" name="tipo" value="inactivo" required>
+    <span><strong>Inactivo</strong><small>Pasó mucho tiempo y no renovó el servicio.</small></span>
+  </label>
+  <label class="opcion-baja">
+    <input type="radio" name="tipo" value="cancelado" required>
+    <span><strong>Cancelado</strong><small>El cliente canceló el servicio o el equipo ya no está con ellos.</small></span>
+  </label>
+  <label>Motivo o nota (opcional)
+    <textarea name="motivo" rows="3" placeholder="Ej. No renovó contrato en 2026"></textarea>
+  </label>
+  <div class="acciones-form">
+    <button type="submit" class="boton boton-peligro">Dar de baja</button>
+    <a href="{{ url_for('admin_lista') }}" class="limpiar">Cancelar</a>
+  </div>
+</form>
+{% endblock %}
